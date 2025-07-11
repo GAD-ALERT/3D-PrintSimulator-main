@@ -2,79 +2,61 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class CameraController : MonoBehaviour {
+public class CameraController : MonoBehaviour
+{
+    public float panSpeed = 10f;
+    public float rotateSpeed = 5f;
+    public float zoomSpeed = 10f;
+    public float minZoom = 5f;
+    public float maxZoom = 100f;
 
-    private float panSpeed = 5f;
-    private float scrollScale = 1f;
-    private float sensitivity = 3f;
+    private Vector3 lastMousePosition;
+    private Camera cam;
 
-    // Use this for initialization
-    void Start () {
-    	
-    }
-
-    // Update is called once per frame
-    void Update() {
-
-        Vector3 pos = new Vector3(0,0,0);
-        Quaternion rot = transform.rotation;
-
-
-        if (Input.GetMouseButton(0))
-        {
-            Debug.Log("Pressed left click.");
-            //While empty
-        }
-
-        if (Input.GetMouseButton(1))
-        {
-            float mouseY = Input.GetAxis("Mouse Y") * sensitivity;
-            float mouseX = Input.GetAxis("Mouse X") * sensitivity;
-            rot = Quaternion.Euler(rot.eulerAngles.x - mouseY, rot.eulerAngles.y + mouseX, rot.eulerAngles.z);
-
-            //Debug.Log("x:" + rot.eulerAngles.x + ";  y:" + rot.eulerAngles.y + ";  z:" + rot.eulerAngles.z);
-        }
-
-        if (Input.GetKey("w"))
-        {
-            pos.z = 0 + panSpeed * Time.deltaTime;
-        }
-        else if (Input.GetKey("s"))
-        {
-            pos.z = 0 - panSpeed * Time.deltaTime;
-        }
-
-        if (Input.GetKey("a"))
-        {
-            pos.x = 0 - panSpeed * Time.deltaTime;
-        }
-        else if (Input.GetKey("d"))
-        {
-            pos.x = 0 + panSpeed * Time.deltaTime;
-        }
-
-        pos.y = 0 - Input.mouseScrollDelta.y * scrollScale;
-
-        pos = BasisRotate(pos, rot);
-
-        transform.position += pos; 
-        transform.rotation = rot;
-        
-    }
-
-    private Vector3 BasisRotate(Vector3 posIn, Quaternion rot)
+    void Start()
     {
-        Vector3 posOut = new Vector3(0, 0, 0);
-
-        posOut.x = posIn.z * Mathf.Sin(rot.eulerAngles.y * Mathf.PI / 180)
-                 + posIn.x * Mathf.Cos(rot.eulerAngles.y * Mathf.PI / 180);
-
-        posOut.y = posIn.y;
-
-        posOut.z = posIn.z * Mathf.Cos(rot.eulerAngles.y * Mathf.PI / 180)
-                 - posIn.x * Mathf.Sin(rot.eulerAngles.y * Mathf.PI / 180);
-  
-        return posOut;
+        cam = Camera.main;
     }
 
+    void Update()
+    {
+        HandleMouseInput();
+    }
+
+    void HandleMouseInput()
+    {
+        // Panning with Middle or Left Mouse Button
+        if (Input.GetMouseButton(2) || Input.GetMouseButton(0)) // Middle mouse button
+        {
+            Vector3 delta = Input.mousePosition - lastMousePosition;
+            Vector3 move = new Vector3(-delta.x, -delta.y, 0) * panSpeed * Time.deltaTime;
+            transform.Translate(move, Space.Self);
+        }
+
+        // Rotation with Right Mouse Button
+        if (Input.GetMouseButton(1)) // Right mouse button
+        {
+            float mouseX = Input.GetAxis("Mouse X") * rotateSpeed;
+            float mouseY = -Input.GetAxis("Mouse Y") * rotateSpeed;
+            transform.eulerAngles += new Vector3(mouseY, mouseX, 0);
+        }
+
+        // Zoom with Scroll Wheel
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        Vector3 zoom = transform.forward * scroll * zoomSpeed;
+        transform.position += zoom;
+
+        // Clamp zoom distance
+        float distance = Vector3.Distance(transform.position, Vector3.zero);
+        if (distance < minZoom)
+        {
+            transform.position = Vector3.zero + (transform.position - Vector3.zero).normalized * minZoom;
+        }
+        else if (distance > maxZoom)
+        {
+            transform.position = Vector3.zero + (transform.position - Vector3.zero).normalized * maxZoom;
+        }
+
+        lastMousePosition = Input.mousePosition;
+    }
 }
