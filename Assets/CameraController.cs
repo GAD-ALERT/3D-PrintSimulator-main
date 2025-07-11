@@ -21,6 +21,7 @@ public class CameraController : MonoBehaviour
     void Update()
     {
         HandleMouseInput();
+        HandleKeyboardShortcuts();
     }
 
     void HandleMouseInput()
@@ -58,5 +59,38 @@ public class CameraController : MonoBehaviour
         }
 
         lastMousePosition = Input.mousePosition;
+    }
+    void HandleKeyboardShortcuts()
+    {
+        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) // Front view
+        {
+            transform.position = new Vector3(0, (float)1.5, (float)3.5);
+            transform.rotation = Quaternion.Euler(0, -180, 0);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha2)|| Input.GetKeyDown(KeyCode.Keypad2)) // Back view
+        {
+            transform.position = new Vector3(0, (float)0.5, -3);
+            transform.rotation = Quaternion.Euler(0, 0, 0);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha3)|| Input.GetKeyDown(KeyCode.Keypad3)) // Left view
+        {
+            transform.position = new Vector3((float)-4.5, (float)0.5, 0);
+            transform.rotation = Quaternion.Euler(0, 90, 0);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha4)|| Input.GetKeyDown(KeyCode.Keypad4)) // Right view
+        {
+            transform.position = new Vector3(3, 1, 1);
+            transform.rotation = Quaternion.Euler(0, -90, 0);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha5)|| Input.GetKeyDown(KeyCode.Keypad5)) // Top view
+        {
+            transform.position = new Vector3(0, 3, 1);
+            transform.rotation = Quaternion.Euler(90, 0, 0);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha6)|| Input.GetKeyDown(KeyCode.Keypad6)) // Bottom view
+        {
+            transform.position = new Vector3(0, -1, 1);
+            transform.rotation = Quaternion.Euler(-90, 0, 0);
+        }
     }
 }
