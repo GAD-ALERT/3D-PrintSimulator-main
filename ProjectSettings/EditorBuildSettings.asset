@@ -4,5 +4,11 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/ImportViewer.unity
+    guid: f337baf7854ef2446a156b285aa3fce4
+  - enabled: 1
+    path: Assets/Scenes/Simulation.unity
+    guid: 57e7203fbccba49408d601d366a0ee25
   m_configObjects: {}

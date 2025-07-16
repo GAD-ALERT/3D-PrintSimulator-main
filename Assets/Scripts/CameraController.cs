@@ -92,5 +92,10 @@ public class CameraController : MonoBehaviour
             transform.position = new Vector3(0, -1, 1);
             transform.rotation = Quaternion.Euler(-90, 0, 0);
         }
+        else if (Input.GetKeyDown(KeyCode.Alpha0)|| Input.GetKeyDown(KeyCode.Keypad0)) // Bottom view
+        {
+            transform.position = new Vector3(2, 3, 1);
+            transform.rotation = Quaternion.Euler(45, -90, 0);
+        }
     }
 }
