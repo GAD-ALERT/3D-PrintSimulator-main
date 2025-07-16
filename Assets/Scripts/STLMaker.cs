@@ -1,99 +1,103 @@
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
-using SFB; // Standalone File Browser plugin
 using Debug = UnityEngine.Debug;
 
 public class STLMaker : MonoBehaviour
 {
     public Text logText;
-    public PrintHeadController printHeadController; // reference this in the inspector
-    
     private List<Facet> facets;
     private Stopwatch stopwatch = new Stopwatch();
-
-    private GameObject currentMeshObject;
-    
     void FitMeshToView(GameObject meshObject)
     {
-        Renderer rend = meshObject.GetComponent<Renderer>();
-        if (rend == null)
-        {
-            Debug.LogError("Renderer not found on the meshObject.");
-            return;
-        }
+        Mesh mesh = meshObject.GetComponent<MeshFilter>().mesh;
 
-        Bounds bounds = rend.bounds;
+        // Calculate the bounds of the mesh
+        Bounds bounds = mesh.bounds;
 
+        // Determine the maximum dimension
         float maxDimension = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+
+        // Set the desired size (adjust as needed)
         float desiredSize = 5f;
+
+        // Compute a uniform scale factor
         float scaleFactor = desiredSize / maxDimension;
 
+        // Apply scale
         meshObject.transform.localScale = Vector3.one * scaleFactor;
+
+        // Center the mesh at origin
         meshObject.transform.position = -bounds.center * scaleFactor;
 
-        Camera.main.transform.position = bounds.center + new Vector3(0, 0, -desiredSize * 2);
-        Camera.main.transform.LookAt(bounds.center);
+        // Optional: Adjust the camera to look at the object
+        Camera.main.transform.position = new Vector3(0, 0, -desiredSize * 2);
+        Camera.main.transform.LookAt(Vector3.zero);
     }
-    
+
     private void OnGUI()
     {
-        if (GUI.Button(new Rect(10, 10, 200, 50), "Import STL File"))
+#if UNITY_EDITOR
+        if (GUI.Button(new Rect(10, 10, 200, 40), "Load STL File"))
         {
-            string[] paths = StandaloneFileBrowser.OpenFilePanel("Select STL", "", "stl", false);
-            if (paths.Length > 0 && File.Exists(paths[0]))
+            string filePath = EditorUtility.OpenFilePanel("Select STL File", "", "stl");
+            if (!string.IsNullOrEmpty(filePath))
             {
-                string filePath = paths[0];
-                byte[] stlBytes = File.ReadAllBytes(filePath);
-                CreateMeshFromBinary(stlBytes, Path.GetFileNameWithoutExtension(filePath));
+                StartStopwatch();
+
+                if (filePath.EndsWith(".stl"))
+                {
+                    byte[] bytes = File.ReadAllBytes(filePath);
+
+                    if (IsBinarySTL(bytes))
+                    {
+                        StopStopwatchWithMessage("Binary STL loaded");
+                        CreateMeshFromBinary(bytes);
+                    }
+                    else
+                    {
+                        string ascii = File.ReadAllText(filePath);
+                        StopStopwatchWithMessage("ASCII STL loaded");
+                        CreateMeshFromAscii(ascii);
+                    }
+                }
             }
         }
+#else
+        GUI.Label(new Rect(10, 10, 300, 40), "STL loading works only inside Unity Editor.");
+#endif
     }
 
-    public void CreateMeshFromBinary(byte[] stlData, string objectName = "ImportedSTL")
-    {
-        StartStopwatch();
-        facets = new List<Facet>();
-        using (MemoryStream stream = new MemoryStream(stlData))
-        using (BinaryReader br = new BinaryReader(stream))
-        {
-            br.ReadBytes(80); // skip header
-            uint triCount = br.ReadUInt32();
-
-            for (int i = 0; i < triCount; i++)
-            {
-                Vector3 normal = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                Vector3 v1 = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                Vector3 v2 = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                Vector3 v3 = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                br.ReadUInt16(); // skip attribute byte count
-
-                facets.Add(new Facet { normal = normal, v1 = v1, v2 = v2, v3 = v3 });
-            }
-        }
-
-        StopStopwatchWithMessage("Binary STL parsed");
-
-        CreateMesh(objectName);
-    }
-
-    public void CreateMesh(string objectName)
+    public void CreateMesh()
     {
         StartStopwatch();
 
-        if (currentMeshObject != null)
-            Destroy(currentMeshObject);
+        var meshFilter = GetComponent<MeshFilter>();
+        if (meshFilter == null)
+        {
+            meshFilter = gameObject.AddComponent<MeshFilter>();
+        }
 
-        currentMeshObject = new GameObject(objectName);
-        MeshFilter meshFilter = currentMeshObject.AddComponent<MeshFilter>();
-        MeshRenderer renderer = currentMeshObject.AddComponent<MeshRenderer>();
-        renderer.material = new Material(Shader.Find("Standard"));
+        var meshRenderer = GetComponent<MeshRenderer>();
+        if (meshRenderer == null)
+        {
+            meshRenderer = gameObject.AddComponent<MeshRenderer>();
+        }
 
-        Mesh mesh = new Mesh();
-        mesh.name = "GeneratedSTLMesh";
+        var clonedMesh = new Mesh
+        {
+            name = "GeneratedMesh",
+            indexFormat = IndexFormat.UInt32
+        };
 
         List<Vector3> normals = new List<Vector3>();
         List<Vector3> vertices = new List<Vector3>();
@@ -104,35 +108,91 @@ public class STLMaker : MonoBehaviour
             normals.Add(facets[i].normal);
             normals.Add(facets[i].normal);
             normals.Add(facets[i].normal);
-
             vertices.Add(facets[i].v1);
             vertices.Add(facets[i].v2);
             vertices.Add(facets[i].v3);
-
-            triangles.Add(i * 3);
+            triangles.Add(i * 3 + 0);
             triangles.Add(i * 3 + 1);
             triangles.Add(i * 3 + 2);
         }
 
-        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-        mesh.vertices = vertices.ToArray();
-        mesh.normals = normals.ToArray();
-        mesh.triangles = triangles.ToArray();
+        clonedMesh.vertices = vertices.ToArray();
+        clonedMesh.normals = normals.ToArray();
+        clonedMesh.triangles = triangles.ToArray();
+        meshFilter.mesh = clonedMesh;
 
-        meshFilter.mesh = mesh;
+        meshRenderer.material = new Material(Shader.Find("Standard"));
+        
+        meshFilter.mesh = clonedMesh;
 
-        currentMeshObject.transform.position = Vector3.zero;
+// Fit the mesh in view
+        FitMeshToView(this.gameObject);
 
-        // Assign to print head
-        if (printHeadController != null)
+        StopStopwatchWithMessage("created mesh");
+    }
+
+    public void CreateMeshFromAscii(string stlData)
+    {
+        StartStopwatch();
+        facets = new List<Facet>();
+
+        var facetSplits = stlData.Split(new[] { "facet normal" }, StringSplitOptions.None);
+        foreach (var split in facetSplits)
         {
-            printHeadController.targetObject = currentMeshObject;
-            Debug.Log("Assigned imported mesh to print head controller.");
+            var facetValues = split.Replace("outer loop", "")
+                                   .Replace("vertex", "")
+                                   .Replace("endloop", "")
+                                   .Replace("endfacet", "")
+                                   .Replace("\n", "")
+                                   .Split(new char[0], StringSplitOptions.RemoveEmptyEntries);
+
+            if (facetValues.Length == 12)
+            {
+                facets.Add(new Facet
+                {
+                    normal = new Vector3(Convert.ToSingle(facetValues[0]), Convert.ToSingle(facetValues[1]), Convert.ToSingle(facetValues[2])),
+                    v1 = new Vector3(Convert.ToSingle(facetValues[3]), Convert.ToSingle(facetValues[4]), Convert.ToSingle(facetValues[5])),
+                    v2 = new Vector3(Convert.ToSingle(facetValues[6]), Convert.ToSingle(facetValues[7]), Convert.ToSingle(facetValues[8])),
+                    v3 = new Vector3(Convert.ToSingle(facetValues[9]), Convert.ToSingle(facetValues[10]), Convert.ToSingle(facetValues[11]))
+                });
+            }
         }
 
-        StopStopwatchWithMessage("Mesh created");
-        
-        FitMeshToView(this.gameObject);
+        StopStopwatchWithMessage("Parsed ASCII STL");
+        CreateMesh();
+    }
+
+    public void CreateMeshFromBinary(byte[] stlData)
+    {
+        StartStopwatch();
+        facets = new List<Facet>();
+
+        using (MemoryStream s = new MemoryStream(stlData))
+        using (BinaryReader br = new BinaryReader(s))
+        {
+            var header = br.ReadBytes(80);
+            uint triCount = br.ReadUInt32();
+
+            for (int i = 0; i < triCount; i++)
+            {
+                var normal = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                var v1 = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                var v2 = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                var v3 = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                br.ReadUInt16(); // Attribute byte count
+
+                facets.Add(new Facet { normal = normal, v1 = v1, v2 = v2, v3 = v3 });
+            }
+        }
+
+        StopStopwatchWithMessage("Parsed Binary STL");
+        CreateMesh();
+    }
+
+    private bool IsBinarySTL(byte[] data)
+    {
+        string header = Encoding.ASCII.GetString(data, 0, Mathf.Min(data.Length, 80));
+        return !header.Trim().StartsWith("solid", StringComparison.OrdinalIgnoreCase);
     }
 
     void StartStopwatch() => stopwatch.Start();
@@ -142,16 +202,18 @@ public class STLMaker : MonoBehaviour
     {
         stopwatch.Stop();
         string log = $"{++count} - {task} finished in {stopwatch.ElapsedMilliseconds} ms";
-        if (logText) logText.text = log + "\n" + logText.text;
+        if (logText != null)
+            logText.text = (count % 3 == 0 ? "\n" : "") + log + "\n" + logText.text;
+
         Debug.Log(log);
         stopwatch.Reset();
     }
+}
 
-    public class Facet
-    {
-        public Vector3 normal { get; set; }
-        public Vector3 v1 { get; set; }
-        public Vector3 v2 { get; set; }
-        public Vector3 v3 { get; set; }
-    }
+public class Facet
+{
+    public Vector3 normal { get; set; }
+    public Vector3 v1 { get; set; }
+    public Vector3 v2 { get; set; }
+    public Vector3 v3 { get; set; }
 }
