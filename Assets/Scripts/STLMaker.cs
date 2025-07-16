@@ -11,30 +11,34 @@ public class STLMaker : MonoBehaviour
 {
     public Text logText;
     public PrintHeadController printHeadController; // reference this in the inspector
-
-    private void FitObjectToView(GameObject obj)
-    {
-        // Calculate bounds
-        Renderer rend = obj.GetComponent<Renderer>();
-        if (rend == null) return;
-
-        Bounds bounds = rend.bounds;
-        float maxSize = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
-
-        // Desired size
-        float desiredSize = 1.0f; // You can change this
-        float scaleFactor = desiredSize / maxSize;
-
-        // Apply scale and reposition
-        obj.transform.localScale = obj.transform.localScale * scaleFactor;
-        obj.transform.position = -bounds.center * scaleFactor;
-    }
     
     private List<Facet> facets;
     private Stopwatch stopwatch = new Stopwatch();
 
     private GameObject currentMeshObject;
+    
+    void FitMeshToView(GameObject meshObject)
+    {
+        Renderer rend = meshObject.GetComponent<Renderer>();
+        if (rend == null)
+        {
+            Debug.LogError("Renderer not found on the meshObject.");
+            return;
+        }
 
+        Bounds bounds = rend.bounds;
+
+        float maxDimension = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+        float desiredSize = 5f;
+        float scaleFactor = desiredSize / maxDimension;
+
+        meshObject.transform.localScale = Vector3.one * scaleFactor;
+        meshObject.transform.position = -bounds.center * scaleFactor;
+
+        Camera.main.transform.position = bounds.center + new Vector3(0, 0, -desiredSize * 2);
+        Camera.main.transform.LookAt(bounds.center);
+    }
+    
     private void OnGUI()
     {
         if (GUI.Button(new Rect(10, 10, 200, 50), "Import STL File"))
@@ -79,9 +83,6 @@ public class STLMaker : MonoBehaviour
     public void CreateMesh(string objectName)
     {
         StartStopwatch();
-        
-        GameObject obj = gameObject;
-        FitObjectToView(obj);
 
         if (currentMeshObject != null)
             Destroy(currentMeshObject);
@@ -130,6 +131,8 @@ public class STLMaker : MonoBehaviour
         }
 
         StopStopwatchWithMessage("Mesh created");
+        
+        FitMeshToView(this.gameObject);
     }
 
     void StartStopwatch() => stopwatch.Start();
